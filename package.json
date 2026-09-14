@@ -1,0 +1,15 @@
+{
+  "name": "riseup2u-telegram-bot",
+  "version": "1.0.0",
+  "description": "RiseUp2u 24/7 On-Chain Telegram Event Listener & Personal Alerts Bot",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "ethers": "^6.13.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
