@@ -85,10 +85,13 @@ const NETWORKS = {
         contractAddress: cleanAddress(process.env.CONTRACT_ADDRESS || '0xEB358F31c0215e1F1D9ff2C4A30C67623C10c8A7'),
         rpcUrls: [
             process.env.BSC_RPC_URL,
+            'https://binance.llamarpc.com',
             'https://bsc-dataseed.binance.org/',
-            'https://bsc-rpc.publicnode.com',
+            'https://bsc-dataseed1.defibit.io/',
+            'https://bsc-dataseed1.ninicoin.io/',
+            'https://bsc.meowrpc.com',
             'https://1rpc.io/bnb',
-            'https://binance.nodereal.io'
+            'https://bsc-rpc.publicnode.com'
         ].filter(Boolean)
     },
     bscTestnet: {
@@ -998,8 +1001,8 @@ async function startListener() {
         latestBlock = await provider.getBlockNumber();
     }
 
-    if (!lastProcessedBlock || lastProcessedBlock > latestBlock) {
-        // Start from current block minus 5 blocks
+    if (!lastProcessedBlock || lastProcessedBlock > latestBlock || (latestBlock - lastProcessedBlock > 30)) {
+        // Start from current block minus 5 blocks for instant real-time sync
         lastProcessedBlock = Math.max(0, latestBlock - 5);
         saveBlock(lastProcessedBlock);
     }
@@ -1010,8 +1013,9 @@ async function startListener() {
     // Start background Telegram updates poller
     pollTelegramUpdates();
 
-    const POLL_INTERVAL_MS = 3500; // 3.5 seconds
-    const MAX_CHUNK_BLOCKS = 100;
+    const POLL_INTERVAL_MS = 4000; // 4 seconds
+    let currentChunkBlocks = 10; // Start with safe small 10-block chunk
+    const MIN_CHUNK = 3;
 
     const runScanLoop = async () => {
         try {
@@ -1020,7 +1024,7 @@ async function startListener() {
 
             if (safeCurrentBlock > lastProcessedBlock) {
                 const fromBlock = lastProcessedBlock + 1;
-                const toBlock = Math.min(fromBlock + MAX_CHUNK_BLOCKS, safeCurrentBlock);
+                const toBlock = Math.min(fromBlock + currentChunkBlocks, safeCurrentBlock);
 
                 // Query all contract logs in this block window with clean checksummed address
                 const targetAddress = cleanAddress(ACTIVE_NET.contractAddress);
@@ -1081,11 +1085,11 @@ async function startListener() {
                 saveBlock(lastProcessedBlock);
             }
         } catch (err) {
-            console.warn(`[Scan Error at Block #${lastProcessedBlock}]:`, err.message);
-            if (err.message.includes('429') || err.message.includes('timeout') || err.message.includes('ECONNRESET')) {
-                rotateRpc();
-                provider = getProvider();
-            }
+            console.warn(`[Scan Error at Block #${lastProcessedBlock}]:`, err.message || err);
+            // Downscale chunk size immediately to prevent limit exceeded errors
+            currentChunkBlocks = MIN_CHUNK;
+            rotateRpc();
+            provider = getProvider();
         }
 
         setTimeout(runScanLoop, POLL_INTERVAL_MS);
