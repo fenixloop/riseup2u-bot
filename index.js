@@ -1,13 +1,13 @@
 /**
  * RiseUp2u.com - 24/7 On-Chain Telegram Event Listener & Personal Alerts Bot
  * ----------------------------------------------------------------------------
- * 1. Broadcasts all on-chain protocol events to community channel (@FenixLoop).
+ * 1. Broadcasts all on-chain protocol events to community channel (@RiseUp2u).
  * 2. Provides PERSONAL direct alerts to individual members when their specific
  *    wallet receives commissions, sponsor bonuses, or completes matrix cycles.
  *
  * Activation for members:
- *   Open t.me/FenixLoopBot?start=0xUserWalletAddress
- *   Or click "Connect Telegram Bot" in RiseUp2u.com Dashboard.
+ *   Open t.me/RiseUp2uBot?start=0xUserWalletAddress
+ *   Or click "Connect Telegram Bot" in RiseUp2u Dashboard.
  *
  * Usage:
  *   node scripts/telegram-listener.js             (Run listener & bot)
@@ -330,7 +330,7 @@ function formatUsdt(weiVal) {
     });
 }
 
-// --- 4. EVENT FORMATTERS & PERSONAL ALERTS DISPATCHER (FenixLoop V2.2) ---
+// --- 4. EVENT FORMATTERS & PERSONAL ALERTS DISPATCHER (RiseUp2u Protocol) ---
 
 // Helper: resolve package tag from id
 function pkgLabel(packageId) {
