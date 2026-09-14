@@ -26,7 +26,7 @@ const healthServer = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
         status: 'online',
-        service: 'FenixLoop Telegram Listener & Alerts Bot',
+        service: 'RiseUp2u Telegram Listener & Alerts Bot',
         uptime: process.uptime(),
         timestamp: new Date().toISOString()
     }));
@@ -61,6 +61,17 @@ const args = process.argv.slice(2);
 const IS_TEST_MODE = args.includes('--test');
 const IS_TESTNET = args.includes('--testnet') || process.env.NETWORK === 'bscTestnet';
 
+/// Clean & sanitize Ethereum address format (prevents ENS lookup crashes on BSC)
+function cleanAddress(addr) {
+    if (!addr) return '0xEB358F31c0215e1F1D9ff2C4A30C67623C10c8A7';
+    const trimmed = String(addr).trim().replace(/^['"]|['"]$/g, '').trim();
+    try {
+        return ethers.getAddress(trimmed);
+    } catch {
+        return '0xEB358F31c0215e1F1D9ff2C4A30C67623C10c8A7';
+    }
+}
+
 // Telegram Settings
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8478969904:AAGImrB-bh6CbGdyfFEPZ6MTO37TgDguQaM';
 const CHANNEL_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '@RiseUp2u';
@@ -71,9 +82,10 @@ const NETWORKS = {
         chainId: 56,
         name: 'BNB Smart Chain (Mainnet)',
         explorerUrl: 'https://bscscan.com',
-        contractAddress: process.env.CONTRACT_ADDRESS || '0xEB358F31c0215e1F1D9ff2C4A30C67623C10c8A7',
+        contractAddress: cleanAddress(process.env.CONTRACT_ADDRESS || '0xEB358F31c0215e1F1D9ff2C4A30C67623C10c8A7'),
         rpcUrls: [
             process.env.BSC_RPC_URL,
+            'https://bsc-dataseed.binance.org/',
             'https://bsc-rpc.publicnode.com',
             'https://1rpc.io/bnb',
             'https://binance.nodereal.io'
@@ -83,7 +95,7 @@ const NETWORKS = {
         chainId: 97,
         name: 'BNB Smart Chain (Testnet)',
         explorerUrl: 'https://testnet.bscscan.com',
-        contractAddress: process.env.CONTRACT_ADDRESS || '0x55DDcf9A34104046D9ebd97feD15a3407dbe0109',
+        contractAddress: cleanAddress(process.env.CONTRACT_ADDRESS || '0x55DDcf9A34104046D9ebd97feD15a3407dbe0109'),
         rpcUrls: [
             process.env.BSC_TESTNET_RPC_URL,
             'https://bsc-testnet-rpc.publicnode.com',
@@ -95,7 +107,7 @@ const NETWORKS = {
 
 const ACTIVE_NET = IS_TESTNET ? NETWORKS.bscTestnet : NETWORKS.bscMainnet;
 
-// FenixLoop V2.2 — 7 Package Tiers (T0–T6)
+// RiseUp2u Protocol — 7 Package Tiers (T0–T6)
 const PACKAGES = {
     0: { tag: 'Starter', size: 10, minTvl: 0 },
     1: { tag: 'Basic', size: 25, minTvl: 0 },
@@ -106,19 +118,26 @@ const PACKAGES = {
     6: { tag: 'Whale', size: 1000, minTvl: 500000 }
 };
 
-// Contract Events ABI — FenixLoop V2.2 Hardened Edition
+// Contract Events ABI — RiseUp2u CommunitySolidarity & Backward Compatible
 const EVENT_ABI = [
-    // Core lifecycle events
+    // Support & Rise Native Events
+    "event Supported(address indexed user, uint256 indexed unitId, uint256 indexed tierId, uint256 amount, uint256 unlockTime)",
+    "event Risen(address indexed user, uint256 indexed unitId, uint256 principal, uint256 benefit, uint256 totalPayout)",
+    "event ReSupported(address indexed user, uint256 indexed oldUnitId, uint256 indexed newUnitId, uint256 amount)",
+    "event HostRegistered(address indexed user, address indexed host)",
+    "event CommunityShareCredited(address indexed upline, address indexed fromUser, uint256 tier, uint256 amount)",
+    "event CommunityShareBreakageRetained(address indexed fromUser, uint256 tier, uint256 amount)",
+    "event CommunityShareRisen(address indexed user, uint256 amount)",
+    "event CommunityReservePaid(address indexed treasury, uint256 amount)",
+
+    // Legacy Fallback Events
     "event Committed(address indexed user, uint256 indexed orderId, uint256 indexed packageId, uint256 amount, uint256 unlockTime)",
     "event Claimed(address indexed user, uint256 indexed orderId, uint256 principal, uint256 reward, uint256 totalPayout)",
     "event Recommitted(address indexed user, uint256 indexed oldOrderId, uint256 indexed newOrderId, uint256 amount)",
-    // Sponsor registration
     "event SponsorRegistered(address indexed user, address indexed sponsor)",
-    // Unilevel commission events
     "event UnilevelCredited(address indexed upline, address indexed fromUser, uint256 level, uint256 amount)",
     "event UnilevelBreakageRetained(address indexed fromUser, uint256 level, uint256 amount)",
     "event UnilevelClaimed(address indexed user, uint256 amount)",
-    // Protocol treasury
     "event ProtocolReservePaid(address indexed treasury, uint256 amount)"
 ];
 
@@ -810,15 +829,15 @@ async function pollTelegramUpdates() {
                             });
 
                             const reply = [
-                                `🎉 <b>FENIXLOOP WALLET ALERTS ACTIVATED!</b>`,
+                                `🎉 <b>RISEUP2U WALLET ALERTS ACTIVATED!</b>`,
                                 `━━━━━━━━━━━━━━━━━━`,
                                 `✅ <b>Wallet:</b> <code>${checksummed}</code>`,
                                 `🔔 <b>Status:</b> <b>ACTIVE 24/7</b>`,
                                 `━━━━━━━━━━━━━━━━━━`,
                                 `<b>Automatic Push Notifications:</b>`,
-                                `You will receive instant real-time alerts whenever your orders mature (+10% Net Yield), unilevel commissions are credited, or rollovers are executed on BNB Smart Chain.`,
+                                `You will receive instant real-time alerts whenever your mutual support units mature (+10% Community Benefit), community share grants are credited, or rollovers are executed on BNB Smart Chain.`,
                                 `━━━━━━━━━━━━━━━━━━`,
-                                `⚡ <i>Dashboard: <a href="https://riseup2u.com">RiseUp2u.com</a></i>`
+                                `⚡ <i>Dashboard: <a href="https://riseup2u.pages.dev/dashboard/">riseup2u.pages.dev/dashboard/</a></i>`
                             ].join('\n');
 
                             await sendTelegramRaw(reply, chatId);
@@ -851,18 +870,18 @@ async function pollTelegramUpdates() {
                             `👋 <b>Welcome to RiseUp2u Alerts Bot!</b>`,
                             `━━━━━━━━━━━━━━━━━━`,
                             `<b>How to Activate Personal Wallet Alerts:</b>`,
-                            `1. Open <b>RiseUp2u.com/dashboard.html</b>, connect your Web3 wallet, and click <b>"Connect Telegram Bot"</b>.`,
+                            `1. Open <b>riseup2u.pages.dev/dashboard/</b> (or <a href="https://riseup2u.com">RiseUp2u.com</a>), connect your Web3 wallet, and click <b>"Connect Telegram Bot"</b>.`,
                             `2. OR send your wallet address directly here:`,
                             `   <code>/start 0xYourWalletAddress</code>`,
                             `   <i>(Example: /start 0xEB358F31c0215e1F1D9ff2C4A30C67623C10c8A7)</i>`,
                             `━━━━━━━━━━━━━━━━━━`,
                             `🔔 <b>Supported Instant Alerts:</b>`,
                             `• <b>Maturity Payouts:</b> Live notification when your 240-hour cycle yields 110% communal rise`,
-                            `• <b>Unilevel Rewards:</b> Real-time community commission alerts across 10 generations`,
-                            `• <b>1-Click Rollovers:</b> Confirmation when principal is re-supported into the next cycle`,
+                            `• <b>Community Share Grants:</b> Real-time community commission alerts across 10 generations`,
+                            `• <b>1-Click Re-Support Rollovers:</b> Confirmation when principal is re-supported into the next cycle`,
                             `━━━━━━━━━━━━━━━━━━`,
                             `📢 <b>Official Channel:</b> @RiseUp2u`,
-                            `⚡ <b>DApp Portal:</b> <a href="https://riseup2u.com">RiseUp2u.com</a>`
+                            `⚡ <b>DApp Portal:</b> <a href="https://riseup2u.pages.dev">riseup2u.pages.dev</a>`
                         ].join('\n');
                         await sendTelegramRaw(welcome, chatId);
                     }
@@ -907,10 +926,7 @@ let currentRpcIndex = 0;
 
 function getProvider() {
     const rpcUrl = ACTIVE_NET.rpcUrls[currentRpcIndex % ACTIVE_NET.rpcUrls.length];
-    return new ethers.JsonRpcProvider(rpcUrl, {
-        chainId: ACTIVE_NET.chainId,
-        name: ACTIVE_NET.name
-    }, {
+    return new ethers.JsonRpcProvider(rpcUrl, ACTIVE_NET.chainId, {
         batchMaxCount: 1,
         staticNetwork: true
     });
@@ -924,21 +940,21 @@ function rotateRpc() {
 
 // --- 8. TEST MODE ---
 async function runTestMode() {
-    console.log(`\n--- FenixLoop Telegram Alert Test ---`);
+    console.log(`\n--- RiseUp2u Telegram Alert Test ---`);
     console.log(`Bot Token: ${BOT_TOKEN ? BOT_TOKEN.slice(0, 10) + '...' : 'NOT CONFIGURED'}`);
     console.log(`Target Channel: ${CHANNEL_CHAT_ID}`);
     console.log(`Network: ${ACTIVE_NET.name}`);
     console.log(`Contract: ${ACTIVE_NET.contractAddress}\n`);
 
     const testMsg = [
-        `🤖 <b>FENIXLOOP BOT CONNECTION TEST</b>`,
+        `🤖 <b>RISEUP2U BOT CONNECTION TEST</b>`,
         `━━━━━━━━━━━━━━━━━━`,
         `✅ <b>Status:</b> Telegram On-Chain Listener Connected!`,
         `🌐 <b>Network:</b> ${ACTIVE_NET.name}`,
         `📍 <b>Contract:</b> <code>${ACTIVE_NET.contractAddress}</code>`,
         `🕒 <b>Time:</b> ${new Date().toUTCString()}`,
         `━━━━━━━━━━━━━━━━━━`,
-        `⚡ <i>Ready to broadcast live 24/7 on-chain matrix alerts!</i>`
+        `⚡ <i>Ready to broadcast live 24/7 on-chain mutual solidarity alerts!</i>`
     ].join('\n');
 
     console.log('Sending test alert to Telegram...');
@@ -949,34 +965,39 @@ async function runTestMode() {
 
 // --- 9. MAIN LISTENER LOOP ---
 async function startListener() {
-    if (IS_TEST_MODE) {
-        return runTestMode();
+    console.log('====================================================');
+    console.log('  RiseUp2u 24/7 On-Chain Telegram Event Listener   ');
+    console.log('====================================================');
+    console.log(`Network:  ${ACTIVE_NET.name} (Chain ID: ${ACTIVE_NET.chainId})`);
+    console.log(`Contract: ${ACTIVE_NET.contractAddress}`);
+    console.log(`Channel:  ${CHANNEL_CHAT_ID}`);
+    console.log(`RPC Node: ${ACTIVE_NET.rpcUrls[0]}\n`);
+
+    if (!BOT_TOKEN) {
+        console.error('[Fatal] TELEGRAM_BOT_TOKEN is not set in environment or code. Exiting.');
+        process.exit(1);
     }
 
-    console.log('================================================================');
-    console.log('🚀 RiseUp2u.com - 24/7 Telegram Listener & Personal Wallet Bot');
-    console.log('================================================================');
-    console.log(`Target Channel: ${CHANNEL_CHAT_ID}`);
-    console.log(`Network:        ${ACTIVE_NET.name} (Chain ID: ${ACTIVE_NET.chainId})`);
-    console.log(`Contract:       ${ACTIVE_NET.contractAddress}`);
-    console.log(`Bot Token:      ${BOT_TOKEN ? 'Configured ✅' : 'Missing ⚠️'}`);
-    console.log('----------------------------------------------------------------');
+    if (IS_TEST_MODE) {
+        await runTestMode();
+        return;
+    }
 
     let provider = getProvider();
     const contractInterface = new ethers.Interface(EVENT_ABI);
 
-    // Initial Block Setup
-    let latestBlock;
+    // Initial Block Setup: Start scanning from latest block minus safety buffer
+    let lastProcessedBlock = getSavedBlock();
+    let latestBlock = 0;
     try {
         latestBlock = await provider.getBlockNumber();
-    } catch (err) {
-        console.error('Failed to connect to RPC initially:', err.message);
+    } catch (e) {
+        console.warn('[Init] Primary RPC failed to getBlockNumber, rotating...');
         rotateRpc();
         provider = getProvider();
         latestBlock = await provider.getBlockNumber();
     }
 
-    let lastProcessedBlock = getSavedBlock();
     if (!lastProcessedBlock || lastProcessedBlock > latestBlock) {
         // Start from current block minus 5 blocks
         lastProcessedBlock = Math.max(0, latestBlock - 5);
@@ -1001,9 +1022,10 @@ async function startListener() {
                 const fromBlock = lastProcessedBlock + 1;
                 const toBlock = Math.min(fromBlock + MAX_CHUNK_BLOCKS, safeCurrentBlock);
 
-                // Query all contract logs in this block window
+                // Query all contract logs in this block window with clean checksummed address
+                const targetAddress = cleanAddress(ACTIVE_NET.contractAddress);
                 const logs = await provider.getLogs({
-                    address: ACTIVE_NET.contractAddress,
+                    address: targetAddress,
                     fromBlock,
                     toBlock
                 });
@@ -1017,25 +1039,32 @@ async function startListener() {
                             if (!parsed) continue;
 
                             switch (parsed.name) {
-                                // ── FenixLoop V2.2 Events ──────────────────
+                                // ── RiseUp2u Support & Rise Native Events ──
+                                case 'Supported':
                                 case 'Committed':
                                     handleCommitted(parsed, log.transactionHash);
                                     break;
+                                case 'Risen':
                                 case 'Claimed':
                                     handleClaimed(parsed, log.transactionHash);
                                     break;
+                                case 'ReSupported':
                                 case 'Recommitted':
                                     handleRecommitted(parsed, log.transactionHash);
                                     break;
+                                case 'HostRegistered':
                                 case 'SponsorRegistered':
                                     handleSponsorRegistered(parsed, log.transactionHash);
                                     break;
+                                case 'CommunityShareCredited':
                                 case 'UnilevelCredited':
                                     handleUnilevelCredited(parsed, log.transactionHash);
                                     break;
+                                case 'CommunityShareRisen':
                                 case 'UnilevelClaimed':
                                     handleUnilevelClaimed(parsed, log.transactionHash);
                                     break;
+                                case 'CommunityReservePaid':
                                 case 'ProtocolReservePaid':
                                     handleProtocolReservePaid(parsed, log.transactionHash);
                                     break;
