@@ -129,7 +129,7 @@ const PACKAGES = {
 
 // Contract Events ABI — RiseUp2u CommunitySolidarity & Backward Compatible
 const EVENT_ABI = [
-    // Support & Rise Native Events
+    // Support & Rise Native Events (CommunitySolidarity.sol)
     "event Supported(address indexed user, uint256 indexed unitId, uint256 indexed tierId, uint256 amount, uint256 unlockTime)",
     "event Risen(address indexed user, uint256 indexed unitId, uint256 principal, uint256 benefit, uint256 totalPayout)",
     "event ReSupported(address indexed user, uint256 indexed oldUnitId, uint256 indexed newUnitId, uint256 amount)",
@@ -137,7 +137,9 @@ const EVENT_ABI = [
     "event CommunityShareCredited(address indexed upline, address indexed fromUser, uint256 tier, uint256 amount)",
     "event CommunityShareBreakageRetained(address indexed fromUser, uint256 tier, uint256 amount)",
     "event CommunityShareRisen(address indexed user, uint256 amount)",
+    "event SolidarityRisen(address indexed user, uint256 amount)",
     "event CommunityReservePaid(address indexed treasury, uint256 amount)",
+    "event LiquidityInjected(address indexed provider, uint256 amount)",
 
     // Legacy Fallback Events
     "event Committed(address indexed user, uint256 indexed orderId, uint256 indexed packageId, uint256 amount, uint256 unlockTime)",
@@ -151,7 +153,7 @@ const EVENT_ABI = [
 ];
 
 // --- 2. SUBSCRIBER DATABASE & NETWORK TREE (WALLET <-> TELEGRAM & HIERARCHY) ---
-const CACHE_DIR = path.resolve(__dirname, '../cache');
+const CACHE_DIR = path.resolve(__dirname, 'cache');
 const SUBSCRIBERS_FILE = path.join(CACHE_DIR, 'subscribers.json');
 const NETWORK_TREE_FILE = path.join(CACHE_DIR, 'network_tree.json');
 
@@ -342,57 +344,77 @@ function formatUsdt(weiVal) {
 // --- 4. EVENT FORMATTERS & PERSONAL ALERTS DISPATCHER (RiseUp2u Protocol) ---
 
 // Helper: resolve package tag from id
-function pkgLabel(packageId) {
-    const pkg = PACKAGES[Number(packageId)];
-    return pkg ? `T${packageId} ${pkg.tag} ($${pkg.size} USDT)` : `Tier ${packageId}`;
+function pkgLabel(tierId) {
+    const pkg = PACKAGES[Number(tierId)];
+    return pkg ? `Tier ${tierId} (${pkg.tag} - $${pkg.size} USDT)` : `Tier ${tierId}`;
 }
 
-// ── EVENT: Committed ─────────────────────────────────────────────
-function handleCommitted(event, txHash) {
-    const { user, orderId, packageId, amount, unlockTime } = event.args;
+// ── EVENT: Supported (Mutual Support Extended) ───────────────────
+function handleSupported(event, txHash) {
+    const args = event.args;
+    const user = args.user;
+    const unitId = (args.unitId ?? args.orderId)?.toString() || '0';
+    const tierId = Number(args.tierId ?? args.packageId ?? 0);
+    const amount = args.amount;
+    const unlockTime = args.unlockTime;
+
     const usdt = formatUsdt(amount);
-    const label = pkgLabel(packageId);
-    const unlockDate = new Date(Number(unlockTime) * 1000).toUTCString();
+    const label = pkgLabel(tierId);
+    const maturesDate = new Date(Number(unlockTime) * 1000).toUTCString();
+    const expectedRise = (Number(ethers.formatUnits(amount, 18)) * 1.10).toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
     const userLower = user.toLowerCase();
 
     const subs = getSubscribers();
     const sub = subs[userLower];
     if (sub) {
         const dm = [
-            `⚡ <b>LIQUIDITY COMMITTED — LOOP STARTED!</b>`,
+            `🤝 <b>[RISEUP2U] MUTUAL SUPPORT EXTENDED!</b>`,
             `━━━━━━━━━━━━━━━━━━`,
+            `👤 <b>Member:</b> <code>${shorten(user)}</code>`,
             `📦 <b>Package:</b> ${label}`,
-            `💵 <b>Committed:</b> $${usdt} USDT`,
-            `🔢 <b>Order ID:</b> #${orderId.toString()}`,
-            `⏰ <b>Matures:</b> ${unlockDate}`,
+            `🔢 <b>Unit ID:</b> #${unitId}`,
+            `⏱️ <b>Cycle Lock:</b> 10 Days (240 Hours)`,
+            `⏰ <b>Matures:</b> ${maturesDate}`,
+            `📈 <b>Expected Rise:</b> $${expectedRise} USDT (Principal + 10% Community Benefit)`,
             `⛓️ <b>Tx:</b> ${linkTx(txHash)}`,
             `━━━━━━━━━━━━━━━━━━`,
-            `⚡ <i>Your 240-hour loop is now running on-chain. Harvest 110% at maturity!</i>`
+            `⚡ <i>Your support is active and empowering communal velocity!</i>`
         ].join('\n');
         queueTelegramMessage(dm, sub.chatId);
     }
 
     const channelMsg = [
-        `⚡ <b>NEW LIQUIDITY COMMITTED!</b>`,
+        `🤝 <b>[RISEUP2U] MUTUAL SUPPORT EXTENDED!</b>`,
         `━━━━━━━━━━━━━━━━━━`,
         `👤 <b>Member:</b> ${linkAddr(user)}`,
         `📦 <b>Package:</b> ${label}`,
-        `💵 <b>Amount:</b> $${usdt} USDT`,
-        `🔢 <b>Order ID:</b> #${orderId.toString()}`,
+        `🔢 <b>Unit ID:</b> #${unitId}`,
+        `⏱️ <b>Cycle Lock:</b> 10 Days (240 Hours)`,
+        `⏰ <b>Matures:</b> ${maturesDate}`,
+        `📈 <b>Expected Rise:</b> $${expectedRise} USDT (Principal + 10% Community Benefit)`,
         `⛓️ <b>Tx:</b> ${linkTx(txHash)}`,
         `━━━━━━━━━━━━━━━━━━`,
-        `⚡ <b>RiseUp2u.com</b> | <i>Zero-Holding Protocol</i>`
+        `⚡ <b>RiseUp2u.com</b> | <i>"Support to Relieve. Unite to Rise."</i>`
     ].join('\n');
 
-    console.log(`[Event] Committed: Order #${orderId} — $${usdt} USDT by ${shorten(user)} (Pkg ${packageId})`);
+    console.log(`[Event] Supported: Unit #${unitId} — $${usdt} USDT by ${shorten(user)} (${label})`);
     queueTelegramMessage(channelMsg, CHANNEL_CHAT_ID);
 }
 
-// ── EVENT: Claimed ───────────────────────────────────────────────
-function handleClaimed(event, txHash) {
-    const { user, orderId, principal, reward, totalPayout } = event.args;
+// ── EVENT: Risen (Solidarity Rise Completed) ─────────────────────
+function handleRisen(event, txHash) {
+    const args = event.args;
+    const user = args.user;
+    const unitId = (args.unitId ?? args.orderId)?.toString() || '0';
+    const principal = args.principal;
+    const benefit = args.benefit ?? args.reward ?? 0n;
+    const totalPayout = args.totalPayout ?? (principal + benefit);
+
     const principalUsdt = formatUsdt(principal);
-    const rewardUsdt = formatUsdt(reward);
+    const benefitUsdt = formatUsdt(benefit);
     const payoutUsdt = formatUsdt(totalPayout);
     const userLower = user.toLowerCase();
 
@@ -400,153 +422,175 @@ function handleClaimed(event, txHash) {
     const sub = subs[userLower];
     if (sub) {
         const dm = [
-            `🎉 <b>LOOP MATURED — PAYOUT CLAIMED!</b>`,
+            `🎉 <b>[RISEUP2U] SOLIDARITY RISE COMPLETED!</b>`,
             `━━━━━━━━━━━━━━━━━━`,
-            `🔢 <b>Order ID:</b> #${orderId.toString()}`,
+            `🔢 <b>Unit ID:</b> #${unitId}`,
             `💵 <b>Principal:</b> $${principalUsdt} USDT`,
-            `📈 <b>Net Profit (+10%):</b> +$${rewardUsdt} USDT`,
+            `📈 <b>Community Benefit (+10%):</b> +$${benefitUsdt} USDT`,
             `💰 <b>Total Payout (110%):</b> $${payoutUsdt} USDT`,
             `⛓️ <b>Tx:</b> ${linkTx(txHash)}`,
             `━━━━━━━━━━━━━━━━━━`,
-            `⚡ <i>Congratulations! Your 110% gross payout has been settled directly to your wallet.</i>`
+            `⚡ <i>Congratulations! Your 110% gross payout has been settled directly to your Web3 wallet.</i>`
         ].join('\n');
         queueTelegramMessage(dm, sub.chatId);
     }
 
     const channelMsg = [
-        `💰 <b>ORDER MATURED — PAYOUT SETTLED!</b>`,
+        `🎉 <b>[RISEUP2U] SOLIDARITY RISE COMPLETED!</b>`,
         `━━━━━━━━━━━━━━━━━━`,
         `👤 <b>Member:</b> ${linkAddr(user)}`,
-        `🔢 <b>Order ID:</b> #${orderId.toString()}`,
-        `💵 <b>Payout (110%):</b> $${payoutUsdt} USDT`,
-        `📈 <b>Net Yield:</b> +$${rewardUsdt} USDT`,
+        `🔢 <b>Unit ID:</b> #${unitId}`,
+        `💵 <b>Principal:</b> $${principalUsdt} USDT`,
+        `📈 <b>Community Benefit (+10%):</b> +$${benefitUsdt} USDT`,
+        `💰 <b>Total Payout (110%):</b> $${payoutUsdt} USDT`,
         `⛓️ <b>Tx:</b> ${linkTx(txHash)}`,
         `━━━━━━━━━━━━━━━━━━`,
-        `⚡ <b>RiseUp2u.com</b> | <i>Zero-Holding Protocol</i>`
+        `⚡ <b>RiseUp2u.com</b> | <i>Mutual Solidarity Payout Settled</i>`
     ].join('\n');
 
-    console.log(`[Event] Claimed: Order #${orderId} — $${payoutUsdt} USDT payout to ${shorten(user)}`);
+    console.log(`[Event] Risen: Unit #${unitId} — $${payoutUsdt} USDT payout to ${shorten(user)}`);
     queueTelegramMessage(channelMsg, CHANNEL_CHAT_ID);
 }
 
-// ── EVENT: Recommitted ───────────────────────────────────────────
-function handleRecommitted(event, txHash) {
-    const { user, oldOrderId, newOrderId, amount } = event.args;
+// ── EVENT: ReSupported (1-Click Re-Support & Rise) ───────────────
+function handleReSupported(event, txHash) {
+    const args = event.args;
+    const user = args.user;
+    const oldUnitId = (args.oldUnitId ?? args.oldOrderId)?.toString() || '0';
+    const newUnitId = (args.newUnitId ?? args.newOrderId)?.toString() || '0';
+    const amount = args.amount;
+
     const usdt = formatUsdt(amount);
+    const payoutTotal = (Number(ethers.formatUnits(amount, 18)) * 1.10).toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
     const userLower = user.toLowerCase();
 
     const subs = getSubscribers();
     const sub = subs[userLower];
     if (sub) {
         const dm = [
-            `🔁 <b>1-CLICK RE-COMMIT EXECUTED!</b>`,
+            `🔄 <b>[RISEUP2U] 1-CLICK RE-SUPPORT & RISE EXECUTED!</b>`,
             `━━━━━━━━━━━━━━━━━━`,
-            `📤 <b>Closed Order:</b> #${oldOrderId.toString()}`,
-            `📥 <b>New Order:</b> #${newOrderId.toString()}`,
-            `💵 <b>Re-committed:</b> $${usdt} USDT`,
+            `📤 <b>Retired Unit:</b> #${oldUnitId}`,
+            `✨ <b>New Support Unit:</b> #${newUnitId} ($${usdt} USDT)`,
+            `💵 <b>Total Payout Sent:</b> $${payoutTotal} USDT (Transferred directly to wallet!)`,
             `⛓️ <b>Tx:</b> ${linkTx(txHash)}`,
             `━━━━━━━━━━━━━━━━━━`,
-            `⚡ <i>+10% net yield claimed. Principal automatically rolled into the next 240-hour cycle!</i>`
+            `⚡ <i>+10% Community Benefit claimed. Principal automatically rolled over into the next 240-hour cycle!</i>`
         ].join('\n');
         queueTelegramMessage(dm, sub.chatId);
     }
 
     const channelMsg = [
-        `🔁 <b>RE-COMMIT LOOP ACTIVATED!</b>`,
+        `🔄 <b>[RISEUP2U] RE-SUPPORT & RISE EXECUTED!</b>`,
         `━━━━━━━━━━━━━━━━━━`,
         `👤 <b>Member:</b> ${linkAddr(user)}`,
-        `💵 <b>Re-committed:</b> $${usdt} USDT`,
-        `📥 <b>New Order:</b> #${newOrderId.toString()}`,
+        `📦 <b>Retired Unit:</b> #${oldUnitId}`,
+        `✨ <b>New Support Unit:</b> #${newUnitId} ($${usdt} USDT)`,
+        `💵 <b>Total Payout Sent:</b> $${payoutTotal} USDT (Transferred directly to wallet!)`,
         `⛓️ <b>Tx:</b> ${linkTx(txHash)}`,
         `━━━━━━━━━━━━━━━━━━`,
-        `⚡ <b>RiseUp2u.com</b> | <i>Perpetual Autonomous Loop</i>`
+        `⚡ <b>RiseUp2u.com</b> | <i>Perpetual Autonomous Solidarity Loop</i>`
     ].join('\n');
 
-    console.log(`[Event] Recommitted: Order #${oldOrderId} → #${newOrderId} for ${shorten(user)}`);
+    console.log(`[Event] ReSupported: Unit #${oldUnitId} → #${newUnitId} ($${usdt} USDT) for ${shorten(user)}`);
     queueTelegramMessage(channelMsg, CHANNEL_CHAT_ID);
 }
 
-// ── EVENT: SponsorRegistered ─────────────────────────────────────
-function handleSponsorRegistered(event, txHash) {
-    const { user, sponsor } = event.args;
-    const sponsorLower = sponsor.toLowerCase();
+// ── EVENT: HostRegistered (Community Host Welcomed) ──────────────
+function handleHostRegistered(event, txHash) {
+    const args = event.args;
+    const user = args.user;
+    const host = args.host ?? args.sponsor;
+    const hostLower = host.toLowerCase();
 
     // Index to persistent network tree cache
-    saveNetworkRegistration(user, sponsor, txHash, event.log?.blockNumber);
+    saveNetworkRegistration(user, host, txHash, event.log?.blockNumber);
 
     const subs = getSubscribers();
-    const sponsorSub = subs[sponsorLower];
-    if (sponsorSub) {
+    const hostSub = subs[hostLower];
+    if (hostSub) {
         const dm = [
-            `🤝 <b>NEW TEAM MEMBER JOINED UNDER YOU!</b>`,
+            `🤝 <b>[RISEUP2U] NEW MEMBER WELCOMED UNDER YOU!</b>`,
             `━━━━━━━━━━━━━━━━━━`,
             `👤 <b>New Member:</b> ${linkAddr(user)}`,
-            `👑 <b>Your Wallet:</b> <code>${shorten(sponsor)}</code>`,
+            `👑 <b>Your Wallet:</b> <code>${shorten(host)}</code>`,
             `⛓️ <b>Tx:</b> ${linkTx(txHash)}`,
             `━━━━━━━━━━━━━━━━━━`,
-            `⚡ <i>Support your new team partner to commit liquidity and unlock 10-tier unilevel commissions!</i>`
+            `⚡ <i>You are their Community Host. Guide them to extend mutual support and unlock 10-Tier Community Shares!</i>`
         ].join('\n');
-        console.log(`[Personal DM] Sending new referral alert to sponsor Chat ID: ${sponsorSub.chatId}`);
-        queueTelegramMessage(dm, sponsorSub.chatId);
+        console.log(`[Personal DM] Sending new member welcome alert to Community Host: ${hostSub.chatId}`);
+        queueTelegramMessage(dm, hostSub.chatId);
     }
 
     const channelMsg = [
-        `🚀 <b>NEW SPONSOR LINK REGISTERED!</b>`,
+        `🤝 <b>[RISEUP2U] NEW COMMUNITY MEMBER WELCOMED!</b>`,
         `━━━━━━━━━━━━━━━━━━`,
         `👤 <b>New Member:</b> ${linkAddr(user)}`,
-        `🤝 <b>Sponsor:</b> ${linkAddr(sponsor)}`,
+        `👑 <b>Community Host:</b> ${linkAddr(host)}`,
         `⛓️ <b>Tx:</b> ${linkTx(txHash)}`,
         `━━━━━━━━━━━━━━━━━━`,
-        `⚡ <b>RiseUp2u.com</b> | <i>Zero-Holding Protocol</i>`
+        `⚡ <b>RiseUp2u.com</b> | <i>"Support to Relieve. Unite to Rise."</i>`
     ].join('\n');
 
-    console.log(`[Event] SponsorRegistered: ${shorten(user)} under ${shorten(sponsor)}`);
+    console.log(`[Event] HostRegistered: ${shorten(user)} welcomed by Community Host ${shorten(host)}`);
     queueTelegramMessage(channelMsg, CHANNEL_CHAT_ID);
 }
 
-// ── EVENT: UnilevelCredited ──────────────────────────────────────
-function handleUnilevelCredited(event, txHash) {
-    const { upline, fromUser, level, amount } = event.args;
+// ── EVENT: CommunityShareCredited (10-Tier Cascade Grant) ─────────
+function handleCommunityShareCredited(event, txHash) {
+    const args = event.args;
+    const upline = args.upline;
+    const fromUser = args.fromUser;
+    const tier = args.tier ?? (Number(args.level ?? 0) + 1);
+    const amount = args.amount;
+
     const usdt = formatUsdt(amount);
+    const tierNum = Number(tier);
     const uplineLower = upline.toLowerCase();
-    const lvl = Number(level) + 1; // contract uses 0-indexed levels
+    const tierLabel = tierNum === 1 ? 'Tier 1 (Direct Host Grant)' : `Tier ${tierNum}`;
 
     const subs = getSubscribers();
     const sub = subs[uplineLower];
     if (sub) {
         const dm = [
-            `💎 <b>UNILEVEL COMMISSION CREDITED!</b>`,
+            `💎 <b>[RISEUP2U] COMMUNITY SHARE RECEIVED!</b>`,
             `━━━━━━━━━━━━━━━━━━`,
-            `🏆 <b>Level:</b> L${lvl} Commission`,
-            `💵 <b>Amount:</b> +$${usdt} USDT`,
-            `👤 <b>From:</b> ${linkAddr(fromUser)}`,
+            `👑 <b>Recipient:</b> <code>${shorten(upline)}</code>`,
+            `🎁 <b>Grant Amount:</b> +$${usdt} USDT`,
+            `🏆 <b>Generation:</b> ${tierLabel}`,
+            `👥 <b>From Member:</b> ${linkAddr(fromUser)}`,
             `⛓️ <b>Tx:</b> ${linkTx(txHash)}`,
             `━━━━━━━━━━━━━━━━━━`,
-            `⚡ <i>Commission added to your claimable balance. Withdraw any time (min $10 USDT).</i>`
+            `⚡ <i>Grant added to your claimable balance. Rise anytime from Community Portal (min 10 USDT).</i>`
         ].join('\n');
-        console.log(`[Personal DM] Unilevel L${lvl} +$${usdt} to Chat ID: ${sub.chatId}`);
+        console.log(`[Personal DM] Community Share Tier ${tierNum} +$${usdt} to Chat ID: ${sub.chatId}`);
         queueTelegramMessage(dm, sub.chatId);
     }
 
     const channelMsg = [
-        `💎 <b>UNILEVEL COMMISSION PAID!</b>`,
+        `💎 <b>[RISEUP2U] COMMUNITY SHARE GRANTED!</b>`,
         `━━━━━━━━━━━━━━━━━━`,
-        `👑 <b>Upline:</b> ${linkAddr(upline)}`,
-        `🏆 <b>Level:</b> L${lvl}`,
-        `💵 <b>Amount:</b> +$${usdt} USDT`,
-        `👤 <b>From:</b> ${linkAddr(fromUser)}`,
+        `👑 <b>Recipient:</b> ${linkAddr(upline)}`,
+        `🏆 <b>Generation:</b> ${tierLabel}`,
+        `🎁 <b>Grant Amount:</b> +$${usdt} USDT`,
+        `👥 <b>From Member:</b> ${linkAddr(fromUser)}`,
         `⛓️ <b>Tx:</b> ${linkTx(txHash)}`,
         `━━━━━━━━━━━━━━━━━━`,
-        `⚡ <b>RiseUp2u.com</b> | <i>10-Tier Unilevel Engine</i>`
+        `⚡ <b>RiseUp2u.com</b> | <i>10-Tier Community Share Engine</i>`
     ].join('\n');
 
-    console.log(`[Event] UnilevelCredited: L${lvl} +$${usdt} → ${shorten(upline)} from ${shorten(fromUser)}`);
+    console.log(`[Event] CommunityShareCredited: Tier ${tierNum} +$${usdt} → ${shorten(upline)} from ${shorten(fromUser)}`);
     queueTelegramMessage(channelMsg, CHANNEL_CHAT_ID);
 }
 
-// ── EVENT: UnilevelClaimed ───────────────────────────────────────
-function handleUnilevelClaimed(event, txHash) {
-    const { user, amount } = event.args;
+// ── EVENT: CommunityShareRisen (Grants Claimed) ──────────────────
+function handleCommunityShareRisen(event, txHash) {
+    const args = event.args;
+    const user = args.user;
+    const amount = args.amount;
     const usdt = formatUsdt(amount);
     const userLower = user.toLowerCase();
 
@@ -554,251 +598,82 @@ function handleUnilevelClaimed(event, txHash) {
     const sub = subs[userLower];
     if (sub) {
         const dm = [
-            `✅ <b>UNILEVEL REWARDS WITHDRAWN!</b>`,
+            `✅ <b>[RISEUP2U] COMMUNITY SHARES RISEN!</b>`,
             `━━━━━━━━━━━━━━━━━━`,
-            `💵 <b>Withdrawn:</b> $${usdt} USDT`,
+            `💵 <b>Amount Risen:</b> $${usdt} USDT`,
             `⛓️ <b>Tx:</b> ${linkTx(txHash)}`,
             `━━━━━━━━━━━━━━━━━━`,
-            `⚡ <i>Your referral commissions have been settled directly to your wallet!</i>`
+            `⚡ <i>Your community share grants have been settled directly to your wallet!</i>`
         ].join('\n');
         queueTelegramMessage(dm, sub.chatId);
     }
 
     const channelMsg = [
-        `✅ <b>UNILEVEL REWARDS CLAIMED!</b>`,
+        `✅ <b>[RISEUP2U] COMMUNITY SHARES RISEN!</b>`,
         `━━━━━━━━━━━━━━━━━━`,
         `👤 <b>Member:</b> ${linkAddr(user)}`,
-        `💵 <b>Amount:</b> $${usdt} USDT`,
+        `💵 <b>Amount Risen:</b> $${usdt} USDT`,
         `⛓️ <b>Tx:</b> ${linkTx(txHash)}`,
         `━━━━━━━━━━━━━━━━━━`,
-        `⚡ <b>RiseUp2u.com</b> | <i>10-Tier Unilevel Engine</i>`
+        `⚡ <b>RiseUp2u.com</b> | <i>10-Tier Community Share Engine</i>`
     ].join('\n');
 
-    console.log(`[Event] UnilevelClaimed: $${usdt} USDT by ${shorten(user)}`);
+    console.log(`[Event] CommunityShareRisen: $${usdt} USDT by ${shorten(user)}`);
     queueTelegramMessage(channelMsg, CHANNEL_CHAT_ID);
 }
 
-// ── EVENT: ProtocolReservePaid ───────────────────────────────────
-function handleProtocolReservePaid(event, txHash) {
-    const { treasury, amount } = event.args;
+// ── EVENT: CommunityShareBreakageRetained (Reinforces Liquidity) ─
+function handleCommunityShareBreakageRetained(event, txHash) {
+    const args = event.args;
+    const fromUser = args.fromUser;
+    const tier = args.tier ?? (Number(args.level ?? 0) + 1);
+    const amount = args.amount;
+
     const usdt = formatUsdt(amount);
-    // Silent — treasury events are internal; log only, no channel broadcast
-    console.log(`[Event] ProtocolReservePaid: $${usdt} USDT → Treasury ${shorten(treasury)}`);
+    const tierNum = Number(tier);
+
+    const channelMsg = [
+        `🛡️ <b>[RISEUP2U] VAULT BREAKAGE RETAINED</b>`,
+        `━━━━━━━━━━━━━━━━━━`,
+        `👤 <b>From Member:</b> ${linkAddr(fromUser)}`,
+        `🏆 <b>Generation:</b> Tier ${tierNum} (Unqualified Host)`,
+        `💵 <b>Retained Liquidity:</b> +$${usdt} USDT`,
+        `⛓️ <b>Tx:</b> ${linkTx(txHash)}`,
+        `━━━━━━━━━━━━━━━━━━`,
+        `⚡ <i>Retained in Vault to reinforce communal claim liquidity reserves!</i>`
+    ].join('\n');
+
+    console.log(`[Event] CommunityShareBreakageRetained: Tier ${tierNum} +$${usdt} USDT from ${shorten(fromUser)}`);
+    queueTelegramMessage(channelMsg, CHANNEL_CHAT_ID);
 }
 
-function handleBundlePurchased(event, txHash) {
-    const { recipient, amount, tierId } = event.args;
-    const tier = TIERS[tierId] || { name: `Tier ${tierId}`, price: '?' };
+// ── EVENT: CommunityReservePaid (Protocol Resilience Vault) ──────
+function handleCommunityReservePaid(event, txHash) {
+    const args = event.args;
+    const treasury = args.treasury;
+    const amount = args.amount;
     const usdt = formatUsdt(amount);
-    const recipientLower = recipient.toLowerCase();
-
-    // 1. Check if recipient is a registered personal subscriber
-    const subs = getSubscribers();
-    const subscriber = subs[recipientLower];
-
-    if (subscriber) {
-        const dmMsg = [
-            `🎉 <b>COMMISSION CREDITED TO YOUR WALLET!</b>`,
-            `━━━━━━━━━━━━━━━━━━`,
-            `💵 <b>Amount:</b> +$${usdt} USDT`,
-            `💎 <b>Loop Tier:</b> ${tier.name} ($${tier.price} USDT)`,
-            `👤 <b>Wallet:</b> <code>${shorten(recipient)}</code>`,
-            `⛓️ <b>Tx:</b> ${linkTx(txHash)}`,
-            `━━━━━━━━━━━━━━━━━━`,
-            `⚡ <i>Congratulations! Funds have been transferred directly to your Web3 wallet.</i>`
-        ].join('\n');
-        console.log(`[Personal DM] Sending commission alert to Chat ID: ${subscriber.chatId}`);
-        queueTelegramMessage(dmMsg, subscriber.chatId);
-    }
-
-    // 2. Broadcast to public community channel
-    const channelMsg = [
-        `💰 <b>PROFIT DISTRIBUTED!</b>`,
-        `━━━━━━━━━━━━━━━━━━`,
-        `💵 <b>Amount:</b> +$${usdt} USDT`,
-        `👤 <b>Recipient:</b> ${linkAddr(recipient)}`,
-        `💎 <b>Matrix Tier:</b> ${tier.name} ($${tier.price} USDT)`,
-        `⛓️ <b>Tx:</b> ${linkTx(txHash)}`,
-        `━━━━━━━━━━━━━━━━━━`,
-        `⚡ <b>RiseUp2u.com</b> | <i>Zero-Holding Protocol</i>`
-    ].join('\n');
-
-    console.log(`[Event] ProfitDistributed: +$${usdt} USDT to ${shorten(recipient)} (Tier ${tierId})`);
-    queueTelegramMessage(channelMsg, CHANNEL_CHAT_ID);
+    console.log(`[Event] CommunityReservePaid: $${usdt} USDT → Treasury ${shorten(treasury)}`);
 }
 
-function handleRegistered(event, txHash) {
-    const { user, sponsor } = event.args;
-    const sponsorLower = sponsor.toLowerCase();
-
-    // Index to persistent network tree cache
-    saveNetworkRegistration(user, sponsor, txHash, event.log?.blockNumber);
-
-    // 1. Notify sponsor if they are subscribed
-    const subs = getSubscribers();
-    const sponsorSub = subs[sponsorLower];
-
-    if (sponsorSub) {
-        const sponsorDm = [
-            `🤝 <b>NEW TEAM MEMBER JOINED UNDER YOU!</b>`,
-            `━━━━━━━━━━━━━━━━━━`,
-            `👤 <b>New Member:</b> ${linkAddr(user)}`,
-            `👑 <b>Sponsor:</b> <code>${shorten(sponsor)}</code>`,
-            `⛓️ <b>Tx:</b> ${linkTx(txHash)}`,
-            `━━━━━━━━━━━━━━━━━━`,
-            `⚡ <i>Support your new team partner to commit liquidity and unlock 10-tier unilevel commissions!</i>`
-        ].join('\n');
-        console.log(`[Personal DM] Sending new referral alert to sponsor Chat ID: ${sponsorSub.chatId}`);
-        queueTelegramMessage(sponsorDm, sponsorSub.chatId);
-    }
-
-    // 2. Broadcast to public channel
-    const channelMsg = [
-        `🚀 <b>NEW MEMBER REGISTERED!</b>`,
-        `━━━━━━━━━━━━━━━━━━`,
-        `👤 <b>New Member:</b> ${linkAddr(user)}`,
-        `🤝 <b>Sponsor:</b> ${linkAddr(sponsor)}`,
-        `⛓️ <b>Tx:</b> ${linkTx(txHash)}`,
-        `━━━━━━━━━━━━━━━━━━`,
-        `⚡ <b>RiseUp2u.com</b> | <i>Zero-Holding Protocol</i>`
-    ].join('\n');
-
-    console.log(`[Event] Registered: ${shorten(user)} sponsored by ${shorten(sponsor)}`);
-    queueTelegramMessage(channelMsg, CHANNEL_CHAT_ID);
-}
-
-function handleBundlePurchased(event, txHash) {
-    const { user, bundleId, totalCost } = event.args;
-    const bundle = BUNDLES[bundleId] || { name: `VIP Bundle #${bundleId}`, cost: '?' };
-    const costUsdt = formatUsdt(totalCost);
-    const userLower = user.toLowerCase();
-
-    // Personal DM
-    const subs = getSubscribers();
-    const sub = subs[userLower];
-    if (sub) {
-        const dm = [
-            `👑 <b>YOUR VIP PACKAGE IS NOW ACTIVE!</b>`,
-            `━━━━━━━━━━━━━━━━━━`,
-            `📦 <b>Package:</b> ${bundle.name}`,
-            `💵 <b>Total Value:</b> $${costUsdt} USDT`,
-            `⛓️ <b>Tx:</b> ${linkTx(txHash)}`,
-            `━━━━━━━━━━━━━━━━━━`,
-            `⚡ <i>Your Fast-Track cycle is now running autonomously on-chain!</i>`
-        ].join('\n');
-        queueTelegramMessage(dm, sub.chatId);
-    }
-
-    // Public broadcast
-    const channelMsg = [
-        `👑 <b>VIP FAST-TRACK BUNDLE ACTIVATED!</b>`,
-        `━━━━━━━━━━━━━━━━━━`,
-        `👤 <b>Member:</b> ${linkAddr(user)}`,
-        `📦 <b>Package:</b> ${bundle.name}`,
-        `💵 <b>Total Value:</b> $${costUsdt} USDT`,
-        `⛓️ <b>Tx:</b> ${linkTx(txHash)}`,
-        `━━━━━━━━━━━━━━━━━━`,
-        `⚡ <b>RiseUp2u.com</b> | <i>VIP Triad Accelerator</i>`
-    ].join('\n');
-
-    console.log(`[Event] VIP Bundle Purchased: #${bundleId} by ${shorten(user)}`);
-    queueTelegramMessage(channelMsg, CHANNEL_CHAT_ID);
-}
-
-function handleLotCreated(event, txHash) {
-    const { lotId, owner, tierId, cycle } = event.args;
-    const tier = TIERS[tierId] || { name: `Tier ${tierId}` };
-    const isReentry = Number(cycle) > 1;
-    const ownerLower = owner.toLowerCase();
-
-    // Personal DM
-    const subs = getSubscribers();
-    const sub = subs[ownerLower];
-    if (sub) {
-        const title = isReentry ? `🔁 <b>RE-COMMIT LOOP ACTIVATED!</b>` : `⚡ <b>NEW LIQUIDITY COMMIT ACTIVATED!</b>`;
-        const dm = [
-            title,
-            `━━━━━━━━━━━━━━━━━━`,
-            `💎 <b>Tier:</b> ${tier.name}`,
-            `🔢 <b>Order ID:</b> #${lotId.toString()}`,
-            `🔄 <b>Cycle:</b> ${cycle.toString()} / 10`,
-            `⛓️ <b>Tx:</b> ${linkTx(txHash)}`,
-            `━━━━━━━━━━━━━━━━━━`,
-            `⚡ <i>Your liquidity cycle is now running 100% on-chain!</i>`
-        ].join('\n');
-        queueTelegramMessage(dm, sub.chatId);
-    }
-
-    // Public broadcast
-    const title = isReentry ? `🔁 <b>MATRIX RE-ENTRY LOOP ACTIVATED!</b>` : `⚡ <b>NEW MATRIX LOT ACTIVATED!</b>`;
-    const channelMsg = [
-        title,
-        `━━━━━━━━━━━━━━━━━━`,
-        `👤 <b>Lot Owner:</b> ${linkAddr(owner)}`,
-        `💎 <b>Tier:</b> ${tier.name}`,
-        `🔢 <b>Lot ID:</b> #${lotId.toString()}`,
-        `🔄 <b>Cycle:</b> ${cycle.toString()} / 10`,
-        `⛓️ <b>Tx:</b> ${linkTx(txHash)}`,
-        `━━━━━━━━━━━━━━━━━━`,
-        `⚡ <b>RiseUp2u.com</b> | <i>Automated Infinite Loops</i>`
-    ].join('\n');
-
-    console.log(`[Event] Lot #${lotId} created for ${shorten(owner)} (Tier ${tierId}, Cycle ${cycle})`);
-    queueTelegramMessage(channelMsg, CHANNEL_CHAT_ID);
-}
-
-function handleDividendPaid(event, txHash) {
-    const { user, poolTier, amount } = event.args;
-    const poolName = POOLS[poolTier] || `Leadership Pool ${poolTier}`;
+// ── EVENT: LiquidityInjected (Vault Capital Inflow) ──────────────
+function handleLiquidityInjected(event, txHash) {
+    const args = event.args;
+    const provider = args.provider;
+    const amount = args.amount;
     const usdt = formatUsdt(amount);
-    const userLower = user.toLowerCase();
-
-    // Personal DM
-    const subs = getSubscribers();
-    const sub = subs[userLower];
-    if (sub) {
-        const dm = [
-            `🏆 <b>LEADERSHIP DIVIDEND RECEIVED!</b>`,
-            `━━━━━━━━━━━━━━━━━━`,
-            `👑 <b>Pool:</b> ${poolName}`,
-            `💵 <b>Dividend:</b> +$${usdt} USDT`,
-            `⛓️ <b>Tx:</b> ${linkTx(txHash)}`,
-            `━━━━━━━━━━━━━━━━━━`,
-            `⚡ <i>Your 3% Global Accumulator dividend has been transferred directly to your wallet!</i>`
-        ].join('\n');
-        queueTelegramMessage(dm, sub.chatId);
-    }
-
-    // Public broadcast
-    const channelMsg = [
-        `🏆 <b>LEADERSHIP DIVIDEND CLAIMED!</b>`,
-        `━━━━━━━━━━━━━━━━━━`,
-        `👤 <b>Leader:</b> ${linkAddr(user)}`,
-        `👑 <b>Pool:</b> ${poolName}`,
-        `💵 <b>Dividend:</b> +$${usdt} USDT`,
-        `⛓️ <b>Tx:</b> ${linkTx(txHash)}`,
-        `━━━━━━━━━━━━━━━━━━`,
-        `⚡ <b>RiseUp2u.com</b> | <i>3% Global Accumulator</i>`
-    ].join('\n');
-
-    console.log(`[Event] DividendPaid: +$${usdt} USDT to ${shorten(user)} (${poolName})`);
-    queueTelegramMessage(channelMsg, CHANNEL_CHAT_ID);
-}
-
-function handlePhoenixLoopExecuted(event, txHash) {
-    const { triggerUser, totalLotsSeeded } = event.args;
 
     const channelMsg = [
-        `🔥 <b>PHOENIX LOOP FLUSH EXECUTED!</b>`,
+        `💧 <b>[RISEUP2U] VAULT LIQUIDITY INJECTED!</b>`,
         `━━━━━━━━━━━━━━━━━━`,
-        `⚡ <b>Protocol Catalyst:</b> ${linkAddr(triggerUser)}`,
-        `🌱 <b>Spillover Lots Seeded:</b> ${totalLotsSeeded.toString()} lots`,
+        `👤 <b>Provider:</b> ${linkAddr(provider)}`,
+        `💵 <b>Amount Injected:</b> +$${usdt} USDT`,
         `⛓️ <b>Tx:</b> ${linkTx(txHash)}`,
         `━━━━━━━━━━━━━━━━━━`,
-        `⚡ <b>RiseUp2u.com</b> | <i>Community Spillover Engine</i>`
+        `⚡ <i>Vault resilience and solvency coverage reinforced!</i>`
     ].join('\n');
 
-    console.log(`[Event] PhoenixLoopExecuted: ${totalLotsSeeded} lots seeded by ${shorten(triggerUser)}`);
+    console.log(`[Event] LiquidityInjected: +$${usdt} USDT from ${shorten(provider)}`);
     queueTelegramMessage(channelMsg, CHANNEL_CHAT_ID);
 }
 
@@ -1052,31 +927,39 @@ async function startListener() {
                                 // ── RiseUp2u Support & Rise Native Events ──
                                 case 'Supported':
                                 case 'Committed':
-                                    handleCommitted(parsed, log.transactionHash);
+                                    handleSupported(parsed, log.transactionHash);
                                     break;
                                 case 'Risen':
                                 case 'Claimed':
-                                    handleClaimed(parsed, log.transactionHash);
+                                    handleRisen(parsed, log.transactionHash);
                                     break;
                                 case 'ReSupported':
                                 case 'Recommitted':
-                                    handleRecommitted(parsed, log.transactionHash);
+                                    handleReSupported(parsed, log.transactionHash);
                                     break;
                                 case 'HostRegistered':
                                 case 'SponsorRegistered':
-                                    handleSponsorRegistered(parsed, log.transactionHash);
+                                    handleHostRegistered(parsed, log.transactionHash);
                                     break;
                                 case 'CommunityShareCredited':
                                 case 'UnilevelCredited':
-                                    handleUnilevelCredited(parsed, log.transactionHash);
+                                    handleCommunityShareCredited(parsed, log.transactionHash);
                                     break;
                                 case 'CommunityShareRisen':
+                                case 'SolidarityRisen':
                                 case 'UnilevelClaimed':
-                                    handleUnilevelClaimed(parsed, log.transactionHash);
+                                    handleCommunityShareRisen(parsed, log.transactionHash);
+                                    break;
+                                case 'CommunityShareBreakageRetained':
+                                case 'UnilevelBreakageRetained':
+                                    handleCommunityShareBreakageRetained(parsed, log.transactionHash);
                                     break;
                                 case 'CommunityReservePaid':
                                 case 'ProtocolReservePaid':
-                                    handleProtocolReservePaid(parsed, log.transactionHash);
+                                    handleCommunityReservePaid(parsed, log.transactionHash);
+                                    break;
+                                case 'LiquidityInjected':
+                                    handleLiquidityInjected(parsed, log.transactionHash);
                                     break;
                                 default:
                                     break;
