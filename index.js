@@ -37,22 +37,28 @@ healthServer.listen(PORT, '0.0.0.0', () => {
 
 // --- 1. CONFIGURATION & ENVIRONMENT LOADER ---
 function loadEnv() {
-    const envPath = path.resolve(__dirname, '../.env');
-    if (fs.existsSync(envPath)) {
-        const content = fs.readFileSync(envPath, 'utf8');
-        content.split('\n').forEach(line => {
-            const trimmed = line.trim();
-            if (trimmed && !trimmed.startsWith('#')) {
-                const eqIndex = trimmed.indexOf('=');
-                if (eqIndex > 0) {
-                    const key = trimmed.slice(0, eqIndex).trim();
-                    const val = trimmed.slice(eqIndex + 1).trim().replace(/^['"]|['"]$/g, '');
-                    if (!process.env[key]) {
-                        process.env[key] = val;
+    const candidatePaths = [
+        path.resolve(__dirname, '.env'),
+        path.resolve(__dirname, '../.env')
+    ];
+    for (const envPath of candidatePaths) {
+        if (fs.existsSync(envPath)) {
+            const content = fs.readFileSync(envPath, 'utf8');
+            content.split('\n').forEach(line => {
+                const trimmed = line.trim();
+                if (trimmed && !trimmed.startsWith('#')) {
+                    const eqIndex = trimmed.indexOf('=');
+                    if (eqIndex > 0) {
+                        const key = trimmed.slice(0, eqIndex).trim();
+                        const val = trimmed.slice(eqIndex + 1).trim().replace(/^['"]|['"]$/g, '');
+                        if (!process.env[key]) {
+                            process.env[key] = val;
+                        }
                     }
                 }
-            }
-        });
+            });
+            break;
+        }
     }
 }
 loadEnv();
@@ -73,7 +79,7 @@ function cleanAddress(addr) {
 }
 
 // Telegram Settings
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8478969904:AAGImrB-bh6CbGdyfFEPZ6MTO37TgDguQaM';
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const CHANNEL_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '@RiseUp2u';
 
 // BSC Network Details
