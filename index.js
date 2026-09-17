@@ -721,7 +721,7 @@ async function pollTelegramUpdates() {
                                 `<b>Automatic Push Notifications:</b>`,
                                 `You will receive instant real-time alerts whenever your mutual support units mature (+10% Community Benefit), community share grants are credited, or rollovers are executed on BNB Smart Chain.`,
                                 `━━━━━━━━━━━━━━━━━━`,
-                                `⚡ <i>Dashboard: <a href="https://riseup2u.pages.dev/dashboard/">riseup2u.pages.dev/dashboard/</a></i>`
+                                `⚡ <i>Dashboard: <a href="https://riseup2u.com/dashboard/">riseup2u.com/dashboard/</a></i>`
                             ].join('\n');
 
                             await sendTelegramRaw(reply, chatId);
@@ -754,7 +754,7 @@ async function pollTelegramUpdates() {
                             `👋 <b>Welcome to RiseUp2u Alerts Bot!</b>`,
                             `━━━━━━━━━━━━━━━━━━`,
                             `<b>How to Activate Personal Wallet Alerts:</b>`,
-                            `1. Open <b>riseup2u.pages.dev/dashboard/</b> (or <a href="https://riseup2u.com">RiseUp2u.com</a>), connect your Web3 wallet, and click <b>"Connect Telegram Bot"</b>.`,
+                            `1. Open <b>riseup2u.com/dashboard/</b> (or <a href="https://riseup2u.com">RiseUp2u.com</a>), connect your Web3 wallet, and click <b>"Connect Telegram Bot"</b>.`,
                             `2. OR send your wallet address directly here:`,
                             `   <code>/start 0xYourWalletAddress</code>`,
                             `   <i>(Example: /start 0xFDF5B6986ee0AF2Ab5941C581F9eB641B52A9ED0)</i>`,
@@ -765,7 +765,7 @@ async function pollTelegramUpdates() {
                             `• <b>1-Click Re-Support Rollovers:</b> Confirmation when principal is re-supported into the next cycle`,
                             `━━━━━━━━━━━━━━━━━━`,
                             `📢 <b>Official Channel:</b> @RiseUp2u`,
-                            `⚡ <b>DApp Portal:</b> <a href="https://riseup2u.pages.dev">riseup2u.pages.dev</a>`
+                            `⚡ <b>DApp Portal:</b> <a href="https://riseup2u.com">riseup2u.com</a>`
                         ].join('\n');
                         await sendTelegramRaw(welcome, chatId);
                     }
