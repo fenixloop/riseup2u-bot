@@ -69,12 +69,12 @@ const IS_TESTNET = args.includes('--testnet') || process.env.NETWORK === 'bscTes
 
 /// Clean & sanitize Ethereum address format (prevents ENS lookup crashes on BSC)
 function cleanAddress(addr) {
-    if (!addr) return '0xFDF5B6986ee0AF2Ab5941C581F9eB641B52A9ED0';
+    if (!addr) return '0x1BC1Cbd42852d4A8831F22629Deaf221330f429E';
     const trimmed = String(addr).trim().replace(/^['"]|['"]$/g, '').trim();
     try {
         return ethers.getAddress(trimmed);
     } catch {
-        return '0xFDF5B6986ee0AF2Ab5941C581F9eB641B52A9ED0';
+        return '0x1BC1Cbd42852d4A8831F22629Deaf221330f429E';
     }
 }
 
@@ -88,7 +88,7 @@ const NETWORKS = {
         chainId: 56,
         name: 'BNB Smart Chain (Mainnet)',
         explorerUrl: 'https://bscscan.com',
-        contractAddress: cleanAddress(process.env.CONTRACT_ADDRESS || '0xFDF5B6986ee0AF2Ab5941C581F9eB641B52A9ED0'),
+        contractAddress: cleanAddress(process.env.CONTRACT_ADDRESS || '0x1BC1Cbd42852d4A8831F22629Deaf221330f429E'),
         rpcUrls: [
             process.env.BSC_RPC_URL,
             'https://binance.llamarpc.com',
@@ -698,7 +698,7 @@ async function pollTelegramUpdates() {
                     const fromUser = update.message.from || {};
 
                     // Handle /start or /link with wallet parameter:
-                    // e.g. "/start 0xFDF5B6986ee0AF2Ab5941C581F9eB641B52A9ED0"
+                    // e.g. "/start 0x1BC1Cbd42852d4A8831F22629Deaf221330f429E"
                     const walletMatch = text.match(/0x[a-fA-F0-9]{40}/i);
 
                     if (walletMatch) {
@@ -757,7 +757,7 @@ async function pollTelegramUpdates() {
                             `1. Open <b>riseup2u.com/dashboard/</b> (or <a href="https://riseup2u.com">RiseUp2u.com</a>), connect your Web3 wallet, and click <b>"Connect Telegram Bot"</b>.`,
                             `2. OR send your wallet address directly here:`,
                             `   <code>/start 0xYourWalletAddress</code>`,
-                            `   <i>(Example: /start 0xFDF5B6986ee0AF2Ab5941C581F9eB641B52A9ED0)</i>`,
+                            `   <i>(Example: /start 0x1BC1Cbd42852d4A8831F22629Deaf221330f429E)</i>`,
                             `━━━━━━━━━━━━━━━━━━`,
                             `🔔 <b>Supported Instant Alerts:</b>`,
                             `• <b>Maturity Payouts:</b> Live notification when your 240-hour cycle yields 110% communal rise`,
